@@ -1,0 +1,11 @@
+backend/.env
+backend/google_token.json
+backend/venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
