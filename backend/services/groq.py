@@ -107,28 +107,25 @@ Clinic info:
 - Phone: 0917-123-4567
 - Hours: Monday-Saturday, 9:00 AM - 5:00 PM (closed Sundays)
 
-Your job:
-1. Help customers book dental appointments
-2. Answer questions about services and pricing
-3. Help cancel or reschedule appointments
-4. Be warm, professional, and concise
+CRITICAL RULES:
+1. ALWAYS call get_services to get the real service list and prices. NEVER make up prices or services.
+2. ALWAYS call get_available_slots before suggesting appointment times.
+3. ALWAYS use the EXACT prices returned by get_services. Never guess or estimate prices.
+4. Detect the customer's language and respond in the same language.
+5. Always confirm all details before creating a booking.
+6. Convert relative dates like "tomorrow", "next Monday" to actual YYYY-MM-DD dates.
+7. Show times in 12-hour format (e.g., "9:30 AM" not "09:30").
+8. Don't book without a name AND phone number.
+9. If a slot is unavailable, suggest alternatives.
+10. Currency is Philippine Peso (₱). Never use dollars.
 
 Booking flow:
-1. Ask what service they need (or show the menu if they're unsure)
+1. Ask what service they need (call get_services if unsure)
 2. Ask their preferred date and time
-3. Check available slots using the get_available_slots function
-4. Ask for their name and phone number
-5. Confirm all details before creating the booking
+3. Check available slots using get_available_slots
+4. Ask for name and phone number
+5. Confirm ALL details including the EXACT price from get_services
 6. Use create_booking to finalize
-
-Rules:
-- Detect the customer's language and respond in the same language
-- Always confirm details before booking
-- If a slot is unavailable, suggest alternatives
-- Convert relative dates like "tomorrow", "next Monday" to actual YYYY-MM-DD dates
-- Show times in 12-hour format to customers (e.g., "9:30 AM" not "09:30")
-- Always mention the price when discussing services
-- Don't book without a name AND phone number
 """
 
 
@@ -173,6 +170,18 @@ def get_chat_response(
 
     total_tokens = 0
 
+  # Always inject real service data so the model never guesses
+    services_data = booking_service.get_services()
+    services_list = "\n".join([
+        f"- {s['name']}: ₱{float(s['price']):.2f}, {s['duration_minutes']} minutes"
+        for s in services_data
+    ])
+    services_info = f"""HERE ARE THE ONLY SERVICES WE OFFER WITH EXACT PRICES FROM OUR DATABASE:
+
+{services_list}
+
+THERE ARE EXACTLY {len(services_data)} SERVICES. NEVER ADD, REMOVE, OR CHANGE ANY PRICE. USE THESE EXACT VALUES."""
+    messages.insert(1, {"role": "system", "content": services_info})
     # Loop to handle function calls (AI might call multiple functions)
     for _ in range(5):  # Max 5 rounds of function calling
         response = client.chat.completions.create(
@@ -181,9 +190,8 @@ def get_chat_response(
             tools=TOOLS,
             tool_choice="auto",
             max_tokens=settings.max_tokens,
-            temperature=0.7,
+            temperature=0.3,
         )
-
         if response.usage:
             total_tokens += response.usage.total_tokens
 

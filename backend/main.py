@@ -24,6 +24,19 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 
 
+@app.get("/test-services")
+async def test_services():
+    from services.supabase_service import supabase
+    from services.booking_service import BUSINESS_ID
+    all_services = supabase.table("services").select("*").execute()
+    filtered = supabase.table("services").select("*").eq("business_id", BUSINESS_ID).execute()
+    return {
+        "business_id_used": BUSINESS_ID,
+        "all_services_count": len(all_services.data),
+        "filtered_count": len(filtered.data),
+        "all_services": all_services.data,
+    }
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "0.1.0"}
