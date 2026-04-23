@@ -2,7 +2,9 @@ import axios from "axios";
 import type { ChatResponse, Conversation, Message } from "../types";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "/api",
 });
 
 export async function sendMessage(
