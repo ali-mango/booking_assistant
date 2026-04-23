@@ -1,18 +1,50 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from services.supabase_service import supabase
 from services.booking_service import BUSINESS_ID
+from config import get_settings
+import jwt
+from datetime import datetime, timedelta
 
 router = APIRouter()
+settings = get_settings()
+security = HTTPBearer()
 
 
-# ============================================
-# BOOKINGS
-# ============================================
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def create_token(username: str) -> str:
+    payload = {
+        "sub": username,
+        "exp": datetime.utcnow() + timedelta(hours=24),
+    }
+    return jwt.encode(payload, settings.admin_secret_key, algorithm="HS256")
+
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    try:
+        payload = jwt.decode(credentials.credentials, settings.admin_secret_key, algorithms=["HS256"])
+        return payload["sub"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@router.post("/admin/login")
+async def login(request: LoginRequest):
+    if request.username != settings.admin_username or request.password != settings.admin_password:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_token(request.username)
+    return {"token": token}
+
 
 @router.get("/admin/bookings")
-async def get_bookings(status: str = None, date: str = None):
-    """Get all bookings, optionally filtered by status or date."""
+async def get_bookings(status: str = None, date: str = None, _user: str = Depends(verify_token)):
     query = (
         supabase.table("bookings")
         .select("*, services(name, price, duration_minutes)")
@@ -23,17 +55,14 @@ async def get_bookings(status: str = None, date: str = None):
         query = query.eq("status", status)
     if date:
         query = query.eq("booking_date", date)
-
     result = query.execute()
     return result.data
 
 
 @router.patch("/admin/bookings/{booking_id}")
-async def update_booking_status(booking_id: str, status: str):
-    """Update a booking's status (confirmed, cancelled, completed, no_show)."""
+async def update_booking_status(booking_id: str, status: str, _user: str = Depends(verify_token)):
     if status not in ["confirmed", "cancelled", "completed", "no_show"]:
         raise HTTPException(status_code=400, detail="Invalid status")
-
     result = (
         supabase.table("bookings")
         .update({"status": status})
@@ -42,10 +71,6 @@ async def update_booking_status(booking_id: str, status: str):
     )
     return result.data
 
-
-# ============================================
-# SERVICES
-# ============================================
 
 class ServiceCreate(BaseModel):
     name: str
@@ -63,8 +88,7 @@ class ServiceUpdate(BaseModel):
 
 
 @router.get("/admin/services")
-async def get_services():
-    """Get all services."""
+async def get_services(_user: str = Depends(verify_token)):
     result = (
         supabase.table("services")
         .select("*")
@@ -76,8 +100,7 @@ async def get_services():
 
 
 @router.post("/admin/services")
-async def create_service(service: ServiceCreate):
-    """Add a new service."""
+async def create_service(service: ServiceCreate, _user: str = Depends(verify_token)):
     result = (
         supabase.table("services")
         .insert({
@@ -93,12 +116,10 @@ async def create_service(service: ServiceCreate):
 
 
 @router.put("/admin/services/{service_id}")
-async def update_service(service_id: str, service: ServiceUpdate):
-    """Update a service."""
+async def update_service(service_id: str, service: ServiceUpdate, _user: str = Depends(verify_token)):
     update_data = {k: v for k, v in service.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
-
     result = (
         supabase.table("services")
         .update(update_data)
@@ -109,15 +130,10 @@ async def update_service(service_id: str, service: ServiceUpdate):
 
 
 @router.delete("/admin/services/{service_id}")
-async def delete_service(service_id: str):
-    """Delete a service."""
+async def delete_service(service_id: str, _user: str = Depends(verify_token)):
     supabase.table("services").delete().eq("id", service_id).execute()
     return {"status": "deleted"}
 
-
-# ============================================
-# BUSINESS SETTINGS
-# ============================================
 
 class BusinessUpdate(BaseModel):
     name: str | None = None
@@ -129,8 +145,7 @@ class BusinessUpdate(BaseModel):
 
 
 @router.get("/admin/business")
-async def get_business():
-    """Get business details."""
+async def get_business(_user: str = Depends(verify_token)):
     result = (
         supabase.table("business")
         .select("*")
@@ -141,12 +156,10 @@ async def get_business():
 
 
 @router.put("/admin/business")
-async def update_business(business: BusinessUpdate):
-    """Update business settings."""
+async def update_business(business: BusinessUpdate, _user: str = Depends(verify_token)):
     update_data = {k: v for k, v in business.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
-
     result = (
         supabase.table("business")
         .update(update_data)
@@ -156,18 +169,11 @@ async def update_business(business: BusinessUpdate):
     return result.data
 
 
-# ============================================
-# DASHBOARD STATS
-# ============================================
-
 @router.get("/admin/stats")
-async def get_stats():
-    """Get dashboard statistics."""
+async def get_stats(_user: str = Depends(verify_token)):
     from datetime import date
-
     today = date.today().isoformat()
 
-    # Today's bookings
     today_bookings = (
         supabase.table("bookings")
         .select("id")
@@ -176,16 +182,12 @@ async def get_stats():
         .eq("status", "confirmed")
         .execute()
     )
-
-    # Total bookings
     total_bookings = (
         supabase.table("bookings")
         .select("id")
         .eq("business_id", BUSINESS_ID)
         .execute()
     )
-
-    # Total confirmed
     confirmed = (
         supabase.table("bookings")
         .select("id")
@@ -193,8 +195,6 @@ async def get_stats():
         .eq("status", "confirmed")
         .execute()
     )
-
-    # Total cancelled
     cancelled = (
         supabase.table("bookings")
         .select("id")

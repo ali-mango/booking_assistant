@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
 import {
+  LayoutDashboard, CalendarDays, Stethoscope, Settings, ArrowLeft,
+  LogOut, Plus, Pencil, Trash2, CheckCircle, XCircle, Clock,
+  Users, TrendingUp, CalendarCheck, CalendarX, Smile
+} from "lucide-react";
+import {
   getStats,
   getBookings,
   updateBookingStatus,
@@ -9,12 +14,108 @@ import {
   deleteService,
   getBusiness,
   updateBusiness,
+  login,
+  logout,
+  isLoggedIn,
 } from "../services/adminApi";
 
 type Tab = "dashboard" | "bookings" | "services" | "settings";
 
+// ============================================
+// LOGIN PAGE
+// ============================================
+function LoginPage({ onLogin }: { onLogin: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await login(username, password);
+      onLogin();
+    } catch {
+      setError("Invalid username or password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f8f9fb] flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
+            <Smile size={28} className="text-teal-500" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">SmileCare Admin</h1>
+          <p className="text-sm text-gray-400 mt-1">Sign in to manage your clinic</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-red-50 text-red-600 text-xs px-4 py-2.5 rounded-lg mb-4 border border-red-100 flex items-center gap-2">
+                <XCircle size={14} />
+                {error}
+              </div>
+            )}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400"
+                placeholder="Enter username"
+                required
+              />
+            </div>
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400"
+                placeholder="Enter password"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-all disabled:opacity-50"
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// MAIN ADMIN DASHBOARD
+// ============================================
 export default function AdminDashboard() {
+  const [authenticated, setAuthenticated] = useState(isLoggedIn());
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+
+  if (!authenticated) {
+    return <LoginPage onLogin={() => setAuthenticated(true)} />;
+  }
+
+  const navItems = [
+    { id: "dashboard" as Tab, label: "Dashboard", icon: LayoutDashboard },
+    { id: "bookings" as Tab, label: "Bookings", icon: CalendarDays },
+    { id: "services" as Tab, label: "Services", icon: Stethoscope },
+    { id: "settings" as Tab, label: "Settings", icon: Settings },
+  ];
 
   return (
     <div className="flex h-screen bg-[#f8f9fb]">
@@ -22,11 +123,8 @@ export default function AdminDashboard() {
       <div className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
         <div className="p-5 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-              </svg>
+            <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
+              <Smile size={16} className="text-teal-500" />
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">SmileCare</p>
@@ -36,34 +134,40 @@ export default function AdminDashboard() {
         </div>
 
         <nav className="flex-1 p-3">
-          {[
-            { id: "dashboard" as Tab, label: "Dashboard", icon: "📊" },
-            { id: "bookings" as Tab, label: "Bookings", icon: "📅" },
-            { id: "services" as Tab, label: "Services", icon: "🦷" },
-            { id: "settings" as Tab, label: "Settings", icon: "⚙️" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm mb-1 transition-all ${
-                activeTab === item.id
-                  ? "bg-teal-50 text-teal-700 font-medium"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm mb-1 transition-all ${
+                  activeTab === item.id
+                    ? "bg-teal-50 text-teal-700 font-medium"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Icon size={16} />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-gray-100 space-y-1">
           <a
             href="/"
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-50 transition-all"
           >
-            ← Back to site
+            <ArrowLeft size={14} />
+            Back to site
           </a>
+          <button
+            onClick={() => { logout(); setAuthenticated(false); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"
+          >
+            <LogOut size={14} />
+            Logout
+          </button>
         </div>
       </div>
 
@@ -92,32 +196,41 @@ function DashboardTab() {
     getBookings().then((data) => setRecentBookings(data.slice(0, 5)));
   }, []);
 
+  const statCards = [
+    { label: "Today's Bookings", value: stats?.today_bookings ?? "—", icon: CalendarCheck, color: "text-teal-500", bg: "bg-teal-50" },
+    { label: "Total Bookings", value: stats?.total_bookings ?? "—", icon: TrendingUp, color: "text-blue-500", bg: "bg-blue-50" },
+    { label: "Confirmed", value: stats?.confirmed ?? "—", icon: CheckCircle, color: "text-green-500", bg: "bg-green-50" },
+    { label: "Cancelled", value: stats?.cancelled ?? "—", icon: CalendarX, color: "text-red-500", bg: "bg-red-50" },
+  ];
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
-      {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: "Today's Bookings", value: stats?.today_bookings ?? "—", color: "from-teal-400 to-emerald-500" },
-          { label: "Total Bookings", value: stats?.total_bookings ?? "—", color: "from-blue-400 to-indigo-500" },
-          { label: "Confirmed", value: stats?.confirmed ?? "—", color: "from-green-400 to-emerald-500" },
-          { label: "Cancelled", value: stats?.cancelled ?? "—", color: "from-orange-400 to-red-400" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-2">{stat.label}</p>
-            <p className={`text-3xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
-              {stat.value}
-            </p>
-          </div>
-        ))}
+        {statCards.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-gray-500">{stat.label}</p>
+                <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
+                  <Icon size={16} className={stat.color} />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Recent bookings */}
       <h2 className="text-lg font-semibold text-gray-900 mb-3">Recent Bookings</h2>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         {recentBookings.length === 0 ? (
-          <p className="p-6 text-sm text-gray-400 text-center">No bookings yet</p>
+          <div className="p-10 text-center">
+            <CalendarDays size={32} className="text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-400">No bookings yet</p>
+          </div>
         ) : (
           <table className="w-full">
             <thead>
@@ -198,7 +311,10 @@ function BookingsTab() {
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         {bookings.length === 0 ? (
-          <p className="p-6 text-sm text-gray-400 text-center">No bookings found</p>
+          <div className="p-10 text-center">
+            <CalendarDays size={32} className="text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-400">No bookings found</p>
+          </div>
         ) : (
           <table className="w-full">
             <thead>
@@ -233,14 +349,16 @@ function BookingsTab() {
                       <div className="flex gap-1">
                         <button
                           onClick={() => handleStatusChange(b.id, "completed")}
-                          className="text-xs px-2.5 py-1 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-all"
+                          className="text-xs px-2.5 py-1 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-all flex items-center gap-1"
                         >
+                          <CheckCircle size={12} />
                           Complete
                         </button>
                         <button
                           onClick={() => handleStatusChange(b.id, "cancelled")}
-                          className="text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                          className="text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-all flex items-center gap-1"
                         >
+                          <XCircle size={12} />
                           Cancel
                         </button>
                       </div>
@@ -317,13 +435,13 @@ function ServicesTab() {
             setEditingId(null);
             setShowForm(!showForm);
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm font-medium hover:from-teal-600 hover:to-emerald-600 transition-all shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-all shadow-sm"
         >
-          + Add Service
+          <Plus size={16} />
+          Add Service
         </button>
       </div>
 
-      {/* Add/Edit form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">
@@ -372,8 +490,9 @@ function ServicesTab() {
           <div className="flex gap-2 mt-4">
             <button
               onClick={handleSubmit}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm font-medium hover:from-teal-600 hover:to-emerald-600 transition-all"
+              className="px-4 py-2 rounded-lg bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-all flex items-center gap-2"
             >
+              <CheckCircle size={14} />
               {editingId ? "Save Changes" : "Add Service"}
             </button>
             <button
@@ -386,37 +505,38 @@ function ServicesTab() {
         </div>
       )}
 
-      {/* Services list */}
       <div className="grid gap-3">
         {services.map((s: any) => (
           <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center justify-between group hover:border-teal-100 transition-all">
             <div className="flex items-center gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                 s.is_active ? "bg-teal-50" : "bg-gray-100"
               }`}>
-                🦷
+                <Stethoscope size={18} className={s.is_active ? "text-teal-500" : "text-gray-400"} />
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900">{s.name}</p>
-                <p className="text-xs text-gray-400">{s.description}</p>
+                <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <Clock size={10} />
+                  {s.duration_minutes} min — {s.description}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-6">
-              <div className="text-right">
-                <p className="text-sm font-bold text-teal-600">₱{Number(s.price).toLocaleString()}</p>
-                <p className="text-xs text-gray-400">{s.duration_minutes} min</p>
-              </div>
+              <p className="text-sm font-bold text-teal-600">₱{Number(s.price).toLocaleString()}</p>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                 <button
                   onClick={() => handleEdit(s)}
-                  className="text-xs px-2.5 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
+                  className="text-xs px-2.5 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all flex items-center gap-1"
                 >
+                  <Pencil size={11} />
                   Edit
                 </button>
                 <button
                   onClick={() => handleDelete(s.id)}
-                  className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                  className="text-xs px-2.5 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-all flex items-center gap-1"
                 >
+                  <Trash2 size={11} />
                   Delete
                 </button>
               </div>
@@ -549,9 +669,13 @@ function SettingsTab() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-5 py-2 rounded-lg bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm font-medium hover:from-teal-600 hover:to-emerald-600 transition-all shadow-sm disabled:opacity-50"
+            className="px-5 py-2 rounded-lg bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-all shadow-sm disabled:opacity-50 flex items-center gap-2"
           >
-            {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
+            {saving ? "Saving..." : saved ? (
+              <><CheckCircle size={14} /> Saved!</>
+            ) : (
+              "Save Changes"
+            )}
           </button>
         </div>
       </div>
