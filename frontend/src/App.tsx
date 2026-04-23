@@ -1,6 +1,6 @@
 import {
   Heart, Sparkles, Shield, Clock, MapPin, Phone, Mail,
-  Star, CheckCircle, ChevronRight, Menu, X,
+  Star, ChevronRight, Menu, X,
   Stethoscope, Smile, Gem, Wrench, MessageSquare, Users
 } from "lucide-react";
 import { useState } from "react";

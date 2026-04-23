@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, CalendarDays, Stethoscope, Settings, ArrowLeft,
-  LogOut, Plus, Pencil, Trash2, CheckCircle, XCircle, Clock,
-  Users, TrendingUp, CalendarCheck, CalendarX, Smile
+  LogOut, Plus, Pencil, Trash2, CheckCircle, XCircle, Clock, TrendingUp, CalendarCheck, CalendarX, Smile
 } from "lucide-react";
 import {
   getStats,
